@@ -85,12 +85,12 @@ def inference(args):
                 for batch in inference_loader:
                     body_ids = batch["body_ids"][i]
                     preds, labels = model.inference_step(batch, i)
-                    predictions.append(preds.tolist())
-                    truths.append(labels.tolist())
+                    predictions.append(preds.detach().cpu().tolist())
+                    truths.append(labels.detach().cpu().tolist())
                     all_body_ids.append(body_ids)
 
                     all_count += 1
-                    if preds.tolist() == labels.tolist():
+                    if preds.detach().cpu().tolist() == labels.detach().cpu().tolist():
                         correct += 1
 
         predictions = list(numpy.concatenate(predictions).flat)
@@ -112,8 +112,8 @@ def inference(args):
 
         for batch in tqdm(inference_loader, desc="Inference on sample assemblies"):
             preds, labels = model.test_step(batch, None)
-            predictions.append(preds.tolist())
-            truths.append(labels.tolist())
+            predictions.append(preds.detach().cpu().tolist())
+            truths.append(labels.detach().cpu().tolist())
 
         predictions = list(numpy.concatenate(predictions).flat)
         truths = list(numpy.concatenate(truths).flat)

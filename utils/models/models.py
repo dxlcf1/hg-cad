@@ -95,9 +95,9 @@ def concat_masked_material_features(args, batch, device, idx=None):
 
 def mask_filter(predictions, ground_truths, mask):
     """Only consider the target nodes without material information in node features."""
-    mask = np.array(mask)
-    predictions = predictions[mask == 0.0]
-    ground_truths = ground_truths[mask == 0]
+    mask = torch.as_tensor(mask, device=predictions.device) == 0
+    predictions = predictions[mask]
+    ground_truths = ground_truths[mask.to(ground_truths.device)]
     return predictions, ground_truths
 
 
@@ -132,6 +132,20 @@ class ClassificationGNN(pl.LightningModule):
         self.test_acc = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes)
         self.args = args
 
+    def _move_batch_to_device(self, batch):
+        """Align custom batch contents for manual test/inference paths."""
+        batch["labels"] = batch["labels"].to(self.device)
+        batch["assembly_graph"] = batch["assembly_graph"].to(self.device)
+
+        if self.args.UV_Net:
+            batch["body_graphs"] = batch["body_graphs"].to(self.device)
+            batch["mask"] = torch.as_tensor(batch["mask"], device=self.device, dtype=torch.bool)
+
+        if batch.get("weights") is not None and torch.is_tensor(batch["weights"]):
+            batch["weights"] = batch["weights"].to(self.device)
+
+        return batch
+
     def forward(self, batched_assembly_graphs):
         logits = self.GNN_model(
             batched_assembly_graphs.x.float(),
@@ -141,6 +155,7 @@ class ClassificationGNN(pl.LightningModule):
         return logits
 
     def training_step(self, batch, batch_idx):
+        batch = self._move_batch_to_device(batch)
         labels = batch["labels"]
 
         if self.args.UV_Net:
@@ -163,6 +178,7 @@ class ClassificationGNN(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        batch = self._move_batch_to_device(batch)
         labels = batch["labels"]
 
         if self.args.UV_Net:
@@ -184,6 +200,7 @@ class ClassificationGNN(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
+        batch = self._move_batch_to_device(batch)
         labels = batch["labels"]
 
         if self.args.UV_Net:
@@ -207,6 +224,7 @@ class ClassificationGNN(pl.LightningModule):
         return preds, labels
 
     def inference_step(self, batch, idx):
+        batch = self._move_batch_to_device(batch)
         labels = batch["labels"]
 
         if self.args.UV_Net:
@@ -226,16 +244,18 @@ class ClassificationGNN(pl.LightningModule):
 
     def UV_embedding_insertion(self, batch):
         """Obtain embeddings from UV-Net and map them back to GNN nodes."""
-        inputs = batch["body_graphs"].to(self.device)
+        inputs = batch["body_graphs"]
+        assembly_graph = batch["assembly_graph"]
 
         inputs.ndata["x"] = inputs.ndata["x"].permute(0, 3, 1, 2)
         inputs.edata["x"] = inputs.edata["x"].permute(0, 2, 1)
 
         _, uv_embeddings = self.UV_model(inputs)
 
-        body_embeddings = torch.zeros((batch["assembly_graph"].x.shape[0], 128), device=self.device)
+        body_embeddings = torch.zeros((assembly_graph.x.shape[0], 128), device=assembly_graph.x.device)
         body_embeddings[batch["mask"], :] = uv_embeddings
-        batch["assembly_graph"].x = torch.cat((batch["assembly_graph"].x, body_embeddings), dim=-1)
+        assembly_graph.x = torch.cat((assembly_graph.x, body_embeddings), dim=-1)
+        batch["assembly_graph"] = assembly_graph
 
         return batch
 

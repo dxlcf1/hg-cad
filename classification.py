@@ -287,8 +287,8 @@ def test(args, dataset_cls):
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Inference on test loader"):
             preds, labels = model.test_step(batch, None)
-            predictions.append(preds.tolist())
-            ground_truths.append(labels.tolist())
+            predictions.append(preds.detach().cpu().tolist())
+            ground_truths.append(labels.detach().cpu().tolist())
 
     predictions = list(numpy.concatenate(predictions).flat)
     ground_truths = list(numpy.concatenate(ground_truths).flat)
