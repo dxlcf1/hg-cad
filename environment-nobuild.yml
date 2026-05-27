@@ -25,7 +25,7 @@ dependencies:
       - torchaudio==2.10.0+cu128
       - lightning>=2.5,<2.7
       - torchmetrics>=1.8,<2
-      - torch_geometric==2.8.0
+      - torch-geometric==2.8.0
       - pyg_lib
       - torch_scatter
       - torch_sparse

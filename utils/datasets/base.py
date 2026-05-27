@@ -271,7 +271,7 @@ class AssemblyGraph:
         }
         graph_data["nodes"], graph_data["links"], _, _ = self.get_graph_data()
         from networkx.readwrite import json_graph
-        return json_graph.node_link_graph(graph_data)
+        return json_graph.node_link_graph(graph_data, edges="links")
 
     def get_node_label_dict(self, attribute="occurrence_name"):
         """Get a dictionary mapping from node ids to a given attribute"""

@@ -27,8 +27,21 @@ source ~/.bashrc
 conda env create -f environment.yml
 conda activate hg_cad
 
-# Verify the requested torch build
-python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
+# If the environment already exists, update it and make sure PyG is installed
+conda env update -f environment.yml --prune
+python -m pip install \
+  --extra-index-url https://download.pytorch.org/whl/cu128 \
+  -f https://data.pyg.org/whl/torch-2.10.0+cu128.html \
+  torch==2.10.0+cu128 \
+  torchvision==0.25.0+cu128 \
+  torchaudio==2.10.0+cu128 \
+  torch-geometric==2.8.0 \
+  pyg_lib \
+  torch_scatter \
+  torch_sparse
+
+# Verify the requested torch and PyG build
+python -c "import torch, torch_geometric; print(torch.__version__); print(torch.cuda.is_available()); print(torch_geometric.__version__)"
 
 # DGL note:
 # The official DGL GPU wheel matrix currently documents PyTorch/CUDA builds only
@@ -37,14 +50,19 @@ python -c "import torch; print(torch.__version__); print(torch.cuda.is_available
 # already provide CUDA compiler tools, install a CUDA 12.8 toolkit first.
 git clone --recurse-submodules https://github.com/dmlc/dgl.git
 cd dgl
+export DGL_HOME=$(pwd)
+export DGLBACKEND=pytorch
 bash script/build_dgl.sh -g
+find "$DGL_HOME" -name libdgl.so
+export DGL_LIBRARY_PATH=$DGL_HOME/build
+export LD_LIBRARY_PATH=$DGL_HOME/build:${LD_LIBRARY_PATH}
 cd python
 python setup.py install
 python setup.py build_ext --inplace
 cd ../..
 
-# Make sure DGL uses the PyTorch backend
-export DGLBACKEND=pytorch
+# Verify DGL can find libdgl.so
+python -c "import dgl; print(dgl.__file__)"
 ```
 
 - **Obtaining the data used in paper**:
@@ -57,17 +75,23 @@ export DGLBACKEND=pytorch
 ```bash
 # Additional tuning knobs are inside classification.py
 python classification.py train \
-  --dataset_path /path/to/dataset \
+  --dataset_path /absolute/path/to/dataset \
   --max_epochs 100 \
   --batch_size 16 \
   --accelerator gpu \
   --devices 1
 ```
 
+- **Common environment issues**
+  - If `ModuleNotFoundError: No module named 'torch_geometric'` appears, rerun the `python -m pip install ... torch-geometric ...` command shown above inside the active `hg_cad` environment.
+  - If DGL raises `RuntimeError: Cannot find the files` for `libdgl.so`, first confirm the file exists with `find /absolute/path/to/dgl -name libdgl.so`, then export `DGL_LIBRARY_PATH=/absolute/path/to/dgl/build` and `LD_LIBRARY_PATH=/absolute/path/to/dgl/build:${LD_LIBRARY_PATH}` before running Python.
+  - If `KeyError: 'edges'` appears while preprocessing assemblies, that is a `networkx` JSON format compatibility issue between old `links`-style graph data and newer `networkx`. This repository now handles that in code; update to the latest repo state before retrying.
+  - Replace `/absolute/path/to/dataset` with your real dataset directory. `/path/to/dataset` is only a placeholder and will not work as-is.
+
 - **Testing**: evaluates the test split from a saved checkpoint.
 ```bash
 python classification.py test \
-  --dataset_path /path/to/dataset \
+  --dataset_path /absolute/path/to/dataset \
   --checkpoint /path/to/best.ckpt \
   --random_seed 1234
 ```
