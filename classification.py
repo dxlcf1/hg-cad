@@ -41,6 +41,17 @@ def parse_devices(devices):
     return int(devices) if devices.isdigit() else devices
 
 
+def load_trusted_classification_checkpoint(checkpoint_path):
+    """Load a trusted Lightning checkpoint across PyTorch >= 2.6."""
+    if hasattr(torch.serialization, "add_safe_globals"):
+        torch.serialization.add_safe_globals([argparse.Namespace])
+
+    try:
+        return ClassificationGNN.load_from_checkpoint(checkpoint_path, weights_only=False)
+    except TypeError:
+        return ClassificationGNN.load_from_checkpoint(checkpoint_path)
+
+
 def get_parser():
     """Obtain argument parser."""
     parser = argparse.ArgumentParser("Classification Model")
@@ -239,7 +250,7 @@ def train_test(args, trainer, dataset_cls):
 
     if args.checkpoint:
         print("Loading from existing checkpoint - continuing previous training")
-        model = ClassificationGNN.load_from_checkpoint(args.checkpoint)
+        model = load_trusted_classification_checkpoint(args.checkpoint)
     else:
         model = ClassificationGNN(args)
 
@@ -271,7 +282,7 @@ def test(args, dataset_cls):
 
     args.edge_dim = test_data.edge_dim()
 
-    model = ClassificationGNN.load_from_checkpoint(args.checkpoint)
+    model = load_trusted_classification_checkpoint(args.checkpoint)
 
     predictions, ground_truths = [], []
     model.eval()

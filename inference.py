@@ -44,13 +44,24 @@ def get_parser():
     return parser.parse_args()
 
 
+def load_trusted_classification_checkpoint(checkpoint_path):
+    """Load a trusted Lightning checkpoint across PyTorch >= 2.6."""
+    if hasattr(torch.serialization, "add_safe_globals"):
+        torch.serialization.add_safe_globals([argparse.Namespace])
+
+    try:
+        return ClassificationGNN.load_from_checkpoint(checkpoint_path, weights_only=False)
+    except TypeError:
+        return ClassificationGNN.load_from_checkpoint(checkpoint_path)
+
+
 def inference(args):
     """Inference on one sample."""
     assert args.checkpoint is not None, "Expected the --checkpoint argument to be provided"
     assert args.inference_sample is not None, "Expected the --inference_sample argument to be provided"
     assert args.vocab is not None, "Expected the --vocab argument to be provided"
 
-    model = ClassificationGNN.load_from_checkpoint(args.checkpoint)
+    model = load_trusted_classification_checkpoint(args.checkpoint)
 
     with open(args.vocab, "rb") as f:
         args.vocab = pickle.load(f)
