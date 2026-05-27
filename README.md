@@ -2,77 +2,90 @@
 
 ### Section 1: Usage
 
-- **Setting up the environment from scratch**
-  - Python == 3.8.5
-  - CUDA Toolkit ("nvcc --version") == 11.3
-  - PyTorch == 1.12.0
+- **Recommended runtime**
+  - Ubuntu 22.04 LTS
+  - NVIDIA GeForce RTX 5090D
+  - Python == 3.11
+  - PyTorch == 2.10.0+cu128
+  - NVIDIA driver compatible with CUDA 12.8 (`nvidia-smi` should report a recent enough driver)
 
 ```bash
 ##################################
-# --- Ubuntu 20.04 LTS (X86) --- #
+# --- Ubuntu 22.04 LTS (X86) --- #
 ##################################
 
 # Basics
 sudo apt-get update
-sudo apt-get upgrade -y
-sudo apt-get dist-upgrade -y
-sudo apt-get install build-essential
+sudo apt-get install -y build-essential git cmake ninja-build
 
-# Install Anaconda for environment control
-wget https://repo.anaconda.com/archive/Anaconda3-2023.03-Linux-x86_64.sh
-bash Anaconda3-*.sh
+# Install Conda if needed
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
 source ~/.bashrc
 
-# Create a conda environment
-conda create --name hgcad python=3.8.5
-conda activate hgcad
-
-# Install CUDA Toolkit (NVCC), version == 11.3
-wget https://developer.download.nvidia.com/compute/cuda/11.3.0/local_installers/cuda_11.3.0_465.19.01_linux.run
-sudo sh cuda_11.3.0_465.19.01_linux.run
-
-# Install PyTorch
-
-######################
-# --- Windows 10 --- #
-######################
-
-# Create conda environment "hg_cad" (Python==3.8.5, CUDA==11.3, PyTorch==1.12.0)
+# Create and activate the project environment
 conda env create -f environment.yml
-
-# Activate conda environment
 conda activate hg_cad
 
-# Install torch_geometric
-conda install pyg -c pyg
+# Verify the requested torch build
+python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
+
+# DGL note:
+# The official DGL GPU wheel matrix currently documents PyTorch/CUDA builds only
+# up to the 2.4 / CUDA 12.4 generation, so for torch 2.10.0+cu128 you should
+# build DGL from source inside this environment. If this machine does not
+# already provide CUDA compiler tools, install a CUDA 12.8 toolkit first.
+git clone --recurse-submodules https://github.com/dmlc/dgl.git
+cd dgl
+bash script/build_dgl.sh -g
+cd python
+python setup.py install
+python setup.py build_ext --inplace
+cd ../..
+
+# Make sure DGL uses the PyTorch backend
+export DGLBACKEND=pytorch
 ```
 
 - **Obtaining the data used in paper**:
   - See [link](https://drive.google.com/file/d/10dHBssZEMqE7-Q-mbzDH-pQ2PYnvFuqX/view?usp=sharing)
-  - If you want to download from command line, try with "gdown" installed (`conda install -c conda-forge gdown`)
-  - Unzip (`unzip <file>.zip`) and place inside a folder (e.g., `./dataset/`)
-  - **If "zipfile corrupt" error**: try `zip -FF Corrupted.zip --out New.zip` (PS: install zip with `sudo apt-get install zip`)
+  - If you want to download from command line, try with `gdown` installed (`conda install -c conda-forge gdown`)
+  - Unzip (`unzip <file>.zip`) and place inside a folder (for example `./dataset/`)
+  - **If `zipfile corrupt` appears**: try `zip -FF Corrupted.zip --out New.zip`
 
-- **Training**: Training on train data, and automatically performs testing on test data when training is finished.
+- **Training**: trains on the train split and automatically tests after training finishes.
 ```bash
-# Additional tuning knobs included INSIDE python file -- see classification.py
-python classification.py train --dataset_path [path/to/dataset] --max_epoch 100 --batch_size 16 --gpus 1
+# Additional tuning knobs are inside classification.py
+python classification.py train \
+  --dataset_path /path/to/dataset \
+  --max_epochs 100 \
+  --batch_size 16 \
+  --accelerator gpu \
+  --devices 1
 ```
 
-- **Testing**: Testing on test data based on checkpoint and random seed obtained from previously finished training.
+- **Testing**: evaluates the test split from a saved checkpoint.
 ```bash
-python classification.py test --dataset_path [path/to/dataset] --checkpoint [path/to/best.ckpt] --random_seed [seed integer]
+python classification.py test \
+  --dataset_path /path/to/dataset \
+  --checkpoint /path/to/best.ckpt \
+  --random_seed 1234
 ```
 
-- **Inference**: on a *single* sample assembly, and produce material label predictions for *all* of its bodies.
-```
-# Additional tuning knobs included INSIDE python file -- see inference.py
-python inference.py single_sample --inference_sample [path/to/inference/sample] --checkpoint [path/to/best.ckpt] --vocab [path/to/vocab.pickle]
+- **Inference**: on a *single* sample assembly, producing material predictions for *all* bodies.
+```bash
+python inference.py single_sample \
+  --inference_sample /path/to/inference/sample \
+  --checkpoint /path/to/best.ckpt \
+  --vocab /path/to/vocab.pickle
 ```
 
-- **Inference**: on *multiple* sample assemblies, and produce material label predictions for *one random* body per assembly.
-```
-python inference.py multiple_sample --inference_sample [path/to/inference/samples] --checkpoint [path/to/best.ckpt] --vocab [path/to/vocab.pickle]
+- **Inference**: on *multiple* sample assemblies, producing a prediction for *one random* body per assembly.
+```bash
+python inference.py multiple_sample \
+  --inference_sample /path/to/inference/samples \
+  --checkpoint /path/to/best.ckpt \
+  --vocab /path/to/vocab.pickle
 ```
 
 ---
