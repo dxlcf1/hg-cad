@@ -179,9 +179,7 @@ def initialization(args):
 
 
 def get_num_workers(args):
-    if args.os == "Windows":
-        return 0
-    return multiprocessing.cpu_count()
+    return 0
 
 
 def train_test(args, trainer, dataset_cls):
