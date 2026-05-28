@@ -41,6 +41,17 @@ def parse_devices(devices):
     return int(devices) if devices.isdigit() else devices
 
 
+def parse_bool_arg(value):
+    if isinstance(value, bool):
+        return value
+    value = str(value).strip().lower()
+    if value in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if value in {"0", "false", "f", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(f"Invalid boolean value: {value}")
+
+
 def load_trusted_classification_checkpoint(checkpoint_path):
     """Load a trusted Lightning checkpoint across PyTorch >= 2.6."""
     if hasattr(torch.serialization, "add_safe_globals"):
@@ -88,7 +99,7 @@ def get_parser():
     parser.add_argument("--MVCNN_embedding", type=bool, default=True)
     parser.add_argument("--random_seed", type=int)
     parser.add_argument("--os", type=str)
-    parser.add_argument("--single_node_prediction", type=bool, default=True)
+    parser.add_argument("--single_node_prediction", type=parse_bool_arg, default=False)
     parser.add_argument("--fixed_split", type=bool, default=False)
 
     return parser.parse_args()
@@ -353,7 +364,6 @@ if __name__ == "__main__":
     # Model settings
     args.node_dropping = True
     args.UV_Net = True
-    args.single_node_prediction = False
     args.fixed_split = True
 
     # Feature engineering settings
